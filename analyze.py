@@ -30,7 +30,7 @@ def analyze_user():
         # Fetch user data from Firestore using the user_id
         content = f'Categorize "{query}" into one of these categories: Technology, Health, Science, Finance, Entertainment, Education, Travel, Politics, Lifestyle, History. Only respond with the matching category'
 
-        res = API("AIzaSyCQsiAhhBhkdCQjd5NA-y77S9LPbCeFb9o") # https://aistudio.google.com/app/apikey
+        res = ("redacted") # https://aistudio.google.com/app/apikey
         res.prompt(content)
         category = res.response()
         
