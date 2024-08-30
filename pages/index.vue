@@ -26,7 +26,10 @@ const handleSubmit = async () => {
         loading.value = true;
         await loginUser(formData.email, formData.password);
         loading.value = false;
-    };
+    }
+    else{
+        alert("Please try again");
+    }
 
 }
 </script>

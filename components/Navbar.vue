@@ -12,9 +12,9 @@ const firebaseUser = useFirebaseUser();
             </div>
 
             <div class="flex-center space-x-3">
-                <NuxtLink>
-                    <h1 class="text-xl md:text-2xl">Search Engine</h1>
-                </NuxtLink>
+
+                <h1 class="text-xl md:text-2xl">Search Engine</h1>
+
             </div>
 
             <div class="flex-center space-x-4">

@@ -38,6 +38,9 @@ const handleSubmit = async () => {
         await initializeUserCategories();
 
     }
+    else {
+        alert("Please try again");
+    }
 }
 
 const initializeUserCategories = async () => {

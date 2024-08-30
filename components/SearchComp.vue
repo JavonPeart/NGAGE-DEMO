@@ -2,13 +2,14 @@
   <div class="container">
 
     <!-- For checking progress and tallying search -->
-    <div class="column blank">
-      <div class="content">
-        <h1 class="md-title">Query Categories</h1>
+    <div class="column categories">
+      <div class="categories-section">
+        <h1 class="categories-title">Search Categories</h1>
         <div class="housing">
-          <ul>
-            <li v-for="(count, category) in categories" :key="category">
-              <p>{{ category }} [{{ count }}]</p>
+          <ul class="categories-list">
+            <li v-for="(count, category) in categories" :key="category" class="category-item">
+              <span class="category-name">{{ category }}</span>
+              <span class="category-count">[{{ count }}]</span>
             </li>
           </ul>
         </div>
@@ -16,17 +17,33 @@
     </div>
 
 
-
     <!-- Handles the search engine -->
     <div class="column search">
       <div class="search-container">
-        <h1 class="title">Earn & Learn</h1>
+        <h1 class="title">Dare To Learn</h1>
         <form class="search-form" @submit.prevent="handleSearch">
           <input v-model="qry" type="text" :placeholder="placeholderMessage" class="search-input" />
           <button type="submit" class="search-button">Search</button>
         </form>
+        <a
+          v-if="hasCategoryReachedTen"
+          href="https://zty.pe/"
+          target="_blank"
+        >
+          <button class="unlock-button" :class="{ unlocked: hasCategoryReachedTen }">Reach 10 in a topic to unlock!</button>
+        </a>
+        <button
+          v-else
+          class="unlock-button"
+          :disabled="true"
+        >
+          Reach 10 in a topic to unlock!
+        </button>
       </div>
     </div>
+
+
+
 
     <!-- Manages Friends List -->
     <div class="column friends">
@@ -35,21 +52,23 @@
           <input v-model="newFriend" type="text" placeholder="Add a friend" class="friend-input" />
           <button type="submit" class="friend-button">Add Friend</button>
         </form>
+        <h3 class="friends-title">Your Friends</h3>
         <ul class="friends-list">
-          <li v-for="friend in friends" :key="friend">
+          <li v-for="friend in friends" :key="friend" class="friend-item">
             {{ friend }}
+            <button class="del-btn" @click="deleteFriend(friend)">Delete</button>
           </li>
         </ul>
       </div>
     </div>
-
   </div>
+
 </template>
 
 
 <script lang="ts" setup>
 import { ref, onMounted } from 'vue';
-import { collection, getDocs, updateDoc, arrayUnion, doc, getDoc, setDoc, increment } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, arrayUnion, doc, getDoc, setDoc, increment, arrayRemove } from 'firebase/firestore';
 import { getFirestore } from 'firebase/firestore';
 import { useNuxtApp } from '#app';
 import { getAuth } from '@firebase/auth';
@@ -61,43 +80,14 @@ const qry = ref('');
 const retrieved = ref('');
 const placeholderMessage = ref('');
 const newFriend = ref('');
-const friends = ref<string[]>([]);
+// const friends = ref<string[]>([]);
 const $firestore = getFirestore();
 const queries = ref<string[]>([]);
 const config = useRuntimeConfig();
 const auth = getAuth();
 const user = auth.currentUser;
-
-const initializeUserCategories = async () => {
-  const auth = getAuth();
-  const user = auth.currentUser;
-
-  if (userId) {
-    const userId = user.uid;
-    const userDocRef = doc($firestore, 'users', userId);
-    const userData = {
-      email: auth.currentUser.email,
-      friends: [''],
-      queries: [''],
-      id: userId,
-      categories: {
-        Technology: 0,
-        Art: 0,
-        Science: 0,
-        Finance: 0,
-        Entertainment: 0,
-        Education: 0,
-        Travel: 0,
-        Politics: 0,
-        Lifestyle: 0,
-        History: 0
-      }
-    };
-
-    // Initialize the user's Firestore document with the categories
-    await setDoc(userDocRef, userData);
-  }
-};
+const friends = ref([]);
+const hasCategoryReachedTen = ref(false);
 
 
 const placeholders = [
@@ -107,10 +97,41 @@ const placeholders = [
   'Discover jobs and educational resources...'
 ];
 
+const checkCategoryTally = async () => {
+  const auth = getAuth();
+  const user = auth.currentUser;
+  const userId = user?.uid;
+
+  if (userId) {
+    const userDocRef = doc($firestore, 'users', userId);
+    const docSnap = await getDoc(userDocRef);
+
+    if (docSnap.exists()) {
+      const categories = docSnap.data().categories || {};
+      hasCategoryReachedTen.value = Object.values(categories).some(count => count >= 10);
+    }
+  }
+};
+
+watch(hasCategoryReachedTen, (newValue) => {
+  updateButtonColor(newValue);
+});
+
+
+const updateButtonColor = (hasReachedTen: boolean) => {
+  const button = document.querySelector('.unlock-button');
+  if (button) {
+    if (hasReachedTen) {
+      button.style.backgroundColor = '#FFC107'; // Yellow color when a category reaches 10
+    } else {
+      button.style.backgroundColor = '#B0B0B0'; // Grey color by default
+    }
+  }
+};
 
 async function addQuery(searchQuery: string) {
   try {
-    const userId = user.uid;
+    const userId = user?.uid;
 
     if (qry.value) {
       const queriesDoc = doc($firestore, 'users', userId);
@@ -128,7 +149,7 @@ async function addQuery(searchQuery: string) {
 const fetchQueries = async () => {
   try {
     const auth = getAuth();
-    const userId = user.uid;
+    const userId = user?.uid;
 
     if (userId) {
       const userDocRef = doc($firestore, 'users', userId);
@@ -144,6 +165,7 @@ const fetchQueries = async () => {
     console.error('Error fetching queries: ', error);
   }
 };
+
 
 const updateCategoryCount = async (userId, category) => {
   const userDocRef = doc($firestore, 'users', userId);
@@ -163,8 +185,8 @@ const handleSearch = async () => {
     await addQuery(qry.value);
     await fetchQueries();
 
-    const userId = user.uid;
-
+    const userId = user?.uid;
+ 
     if (userId) {
 
       const response = await $fetch('http://127.0.0.1:5000/userId', {
@@ -179,6 +201,10 @@ const handleSearch = async () => {
         const category = response.category;
         await updateCategoryCount(userId, category);
         console.log('Categorized query:', category);
+        
+        checkCategoryTally();
+        updateButtonColor(hasCategoryReachedTen.value);
+        
       } else {
         console.error('Error:', response.message);
       }
@@ -189,6 +215,8 @@ const handleSearch = async () => {
   }
   fetchQueries();
   fetchCategoryCounts();
+  checkCategoryTally();
+  updateButtonColor(hasCategoryReachedTen.value);
 
 };
 
@@ -206,6 +234,8 @@ onMounted(() => {
   fetchFriends();
   fetchQueries();
   fetchCategoryCounts();
+  checkCategoryTally();
+  updateButtonColor(hasCategoryReachedTen.value);
 });
 
 
@@ -251,8 +281,32 @@ const addFriend = async () => {
   } else {
     console.error('Please enter a username');
     alert('Please enter a username to add a friend.');
+
   }
 };
+
+const deleteFriend = async (friendId: string) => {
+  const auth = getAuth();
+  const user = auth.currentUser;
+  const userId = user?.uid;
+
+  if (userId) {
+    try {
+      const userDocRef = doc($firestore, 'users', userId);
+      await updateDoc(userDocRef, {
+        friends: arrayRemove(friendId)
+      });
+
+      fetchFriends(); // Refresh the list of friends after deletion
+      console.log(`Friend with ID ${friendId} removed successfully.`);
+    } catch (error) {
+      console.error('Error removing friend:', error);
+    }
+  } else {
+    console.error('User is not logged in.');
+  }
+};
+
 
 
 
@@ -260,7 +314,7 @@ const addFriend = async () => {
 const fetchFriends = async () => {
   try {
     const auth = getAuth();
-    const userId = user.uid;
+    const userId = user?.uid;
 
     if (userId) {
       const userDocRef = doc($firestore, 'users', userId);
@@ -281,17 +335,31 @@ const categories = ref({});
 
 const fetchCategoryCounts = async () => {
   const auth = getAuth();
-  const userId = user.uid;
+  const user = auth.currentUser; // Ensure auth.currentUser is available
+  const userId = user?.uid;
+
 
   if (userId) {
     const userDocRef = doc($firestore, 'users', userId);
     const docSnap = await getDoc(userDocRef);
 
     if (docSnap.exists()) {
-      categories.value = docSnap.data().categories || {};
+      const fetchedCategories = docSnap.data().categories || {};
+
+      // Sort the categories by highest count
+      const sortedCategories = Object.entries(fetchedCategories)
+        .sort(([, countA], [, countB]) => countB - countA)
+        .reduce((acc, [key, value]) => {
+          acc[key] = value;
+          return acc;
+        }, {});
+
+      categories.value = sortedCategories;
     }
   }
 };
+
+
 
 </script>
 
@@ -299,51 +367,103 @@ const fetchCategoryCounts = async () => {
 .container {
   display: flex;
   justify-content: space-between;
+
 }
 
-.column.blank {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 80vh;
-  max-height: fit-content;
-}
-
-.content {
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 20px;
-  border: 1px solid #151515;
-  border-radius: 8px;
+/* Container */
+.column.categories {
+  max-width: 400px;
+  /* Narrower width */
+  margin: 20px auto;
+  padding: 15px;
   background-color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
-.housing {
-  margin-top: 20px;
+.categories-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-.housing ul {
+/* Title Styles */
+.categories-title {
+  font-size: 22px;
+  font-weight: bold;
+  color: #444;
+  margin-bottom: 15px;
+}
+
+/* Categories List */
+.categories-list {
   list-style-type: none;
-  padding-left: 0;
+  padding: 0;
+  width: 100%;
 }
 
-.housing ul li {
-  padding: 10px;
-  background-color: #eef;
-  margin-bottom: 10px;
-  border-radius: 4px;
+.category-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background-color: #f1f1f1;
+  border-radius: 5px;
+  font-size: 15px;
+  transition: background-color 0.3s;
+  width: 12vw;
 }
 
-.housing ul li p {
-  margin: 0;
-  color: #555;
-  font-size: 16px;
+.category-item:hover {
+  background-color: #e9e9e9;
 }
 
-.column {
+.unlock-button {
+  margin-top: 20px;
+  padding: 15px 20px;
+  font-size: 18px;
+  color: white;
+  background-color: #B0B0B0;
+  /* Grey by default */
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.unlock-button:hover {
+  background-color: #A0A0A0;
+  /* Slightly darker grey on hover */
+}
+
+/* Additional state when a category reaches 10 */
+.unlock-button.unlocked {
+  background-color: #FFC107;
+  /* Yellow when unlocked */
+}
+
+.unlock-button.unlocked:hover {
+  background-color: #FFB300;
+  /* Slightly darker yellow on hover */
+}
+
+/* Category Name on the Left */
+.category-name {
   flex: 1;
-  padding: 10px;
+  color: #333;
+  text-align: left;
 }
+
+/* Category Count on the Right */
+.category-count {
+  flex: 0;
+  font-weight: bold;
+  color: #333;
+  text-align: right;
+}
+
+
 
 .search-container {
   display: flex;
@@ -352,11 +472,24 @@ const fetchCategoryCounts = async () => {
 }
 
 .title {
-  font-size: 3rem;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 4rem;
+  /* Increase the size */
   font-weight: bold;
   margin-bottom: 20px;
-  color: #151515;
+  color: inline-gradient(45deg, #f3ec78, #af4261);
+  /* Add a gradient color */
+  text-align: center;
+  /* Center-align the title */
+  letter-spacing: 2px;
+  /* Add some spacing between letters */
+  text-transform: uppercase;
+  /* Make the text uppercase */
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.4);
+  /* Add a subtle shadow for depth */
+  display: inline-block;
 }
+
 
 .search-form {
   display: flex;
@@ -402,54 +535,94 @@ const fetchCategoryCounts = async () => {
 }
 
 .column.friends {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 80vh;
+  max-width: 600px;
+  margin: 20px auto;
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .friends-section {
-  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
+/* Form Styles */
 .friend-form {
   display: flex;
+  width: 100%;
   margin-bottom: 20px;
 }
 
 .friend-input {
   flex: 1;
-  color: black;
-  padding: 12px;
-  font-size: 1.2rem;
-  border: 2px solid #2c3e50;
-  border-right: none;
-  border-radius: 4px 0 0 4px;
+  padding: 8px 12px;
+  color: #333;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+  margin-right: 10px;
 }
 
 .friend-button {
-  padding: 12px 20px;
-  font-size: 1.2rem;
-  background-color: #2c3e50;
+  background-color: #4CAF50;
   color: white;
-  border: 2px solid #2c3e50;
-  border-radius: 0 4px 4px 0;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
   cursor: pointer;
-  transition: background-color 0.3s ease;
+  font-size: 14px;
+  transition: background-color 0.3s;
 }
 
 .friend-button:hover {
-  background-color: #34495e;
+  background-color: #45a049;
+}
+
+/* Friends List */
+.friends-title {
+  font-size: 20px;
+  margin-bottom: 10px;
+  color: #444;
 }
 
 .friends-list {
   list-style-type: none;
   padding: 0;
+  width: 100%;
 }
 
-.friends-list li {
-  padding: 10px;
-  color: #151515;
-  border-bottom: 1px solid #ddd;
+.friend-item {
+  display: flex;
+  color: #333;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
+  margin-bottom: 8px;
+  background-color: #f1f1f1;
+  border-radius: 5px;
+  font-size: 16px;
+  transition: background-color 0.3s;
+}
+
+.friend-item:hover {
+  background-color: #e9e9e9;
+}
+
+.del-btn {
+  background-color: #ff4d4d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s;
+}
+
+.del-btn:hover {
+  background-color: #ff3333;
 }
 </style>
